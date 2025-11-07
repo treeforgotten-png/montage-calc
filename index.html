@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Калькулятор стоимости выезда на монтаж — Яндекс.Карты</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto; margin:0; background:#0b1220; color:#e7efff; }
+    .wrap { display:grid; grid-template-columns: 520px 1fr; height:100vh; }
+    .panel { background:#101a30; padding:16px; display:flex; flex-direction:column; gap:12px; border-right:1px solid #223355; }
+    input,button { padding:12px; border-radius:10px; border:1px solid #223355; background:#0b1428; color:#fff; }
+    button { background:#5aa2ff; border:none; cursor:pointer; font-weight:600; }
+    .map { height:100%; }
+    .file { padding:10px; border:1px dashed #29406f; border-radius:8px; background:#0b1428; color:#cdddff; }
+    .badge { display:inline-block; padding:4px 8px; border-radius:999px; background:#112247; border:1px solid #24407b; color:#cdddff; font-size:12px; }
+    .hint { font-size:12px; color:#9bb0d8; }
+    .ok { color:#1ac97f; }
+    .err { color:#ff6b6b; }
+    .section { border-top:1px solid #223355; padding-top:10px; margin-top:10px; }
+    /* Поверх всего — чтобы список подсказок не был перекрыт картой */
+    .ymaps-2-1-79-suggest__wrapper, [class*="suggest__wrapper"] { z-index: 100000 !important; }
+    .ymaps-2-1-79-popup, [class*="suggest__popup"] { z-index: 100001 !important; }
+    #fatal { position:fixed; inset:0; display:none; place-items:center; background:rgba(11,18,32,.92); color:#fff; text-align:center; padding:24px; }
+    #fatal .card { background:#101a30; border:1px solid #223355; border-radius:14px; padding:18px; max-width:700px; }
+    #fatal .row { display:flex; gap:8px; justify-content:center; margin-top:10px; flex-wrap:wrap; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <aside class="panel">
+      <h2>Калькулятор выезда (Яндекс.Карты)</h2>
+
+      <label>Адрес</label>
+      <input id="address" type="text" placeholder="Начните вводить адрес..." autocomplete="off" style="width:100%;" />
+      <button id="btnFind" style="width:100%;">Найти</button>
+
+      <label>Импорт зон (GeoJSON)</label>
+      <div style="display:flex; gap:8px;">
+        <input id="zonesFile" class="file" type="file" accept=".json,.geojson" style="flex:1;" />
+        <button id="btnLoadZones" style="flex:0 0 auto;">Загрузить</button>
+      </div>
+      <div class="hint">FeatureCollection с полигонами. Свойства: <b>name</b>, <b>price</b> (₽), опционально <b>priority</b>. Зоны скрыты.</div>
+
+      <div id="result" style="margin-top:6px; display:grid; gap:6px;">
+        <div class="badge" id="zoneBadge">Зона: —</div>
+        <div>Стоимость: <b id="price">—</b></div>
+        <div class="hint" id="coords">Координаты: —</div>
+        <div class="hint" id="region">Регион: —</div>
+      </div>
+
+      <div class="section">
+        <b>Диагностика</b>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+          <button id="btnTestSuggest">Тест подсказок: «Крыленко»</button>
+          <button id="btnTestGeocode">Тест геокода: «Санкт-Петербург, ул. Крыленко, 45к1»</button>
+          <button id="btnTestPrice">Тест цены (центр карты)</button>
+        </div>
+        <div id="diag" class="hint"></div>
+      </div>
+
+    </aside>
+    <main class="map" id="map"></main>
+  </div>
+
+  <div id="fatal"><div class="card">
+    <h3>Не удалось загрузить Яндекс.Карты</h3>
+    <p>Проверьте интернет и API‑ключ. Без API подсказки и геокод недоступны.</p>
+    <div class="row">
+      <button id="retry">Повторить загрузку</button>
+    </div>
+  </div></div>
+
+  <!-- ПОДКЛЮЧАЕМ API С МОДУЛЕМ SUGGEST -->
+  <script id="yaScript" src="https://api-maps.yandex.ru/2.1/?apikey=9d1fc9c0-62a5-46bb-b90d-4001a9ec9b9e&lang=ru_RU&load=package.full,suggest" crossorigin="anonymous" onerror="window.__yaLoadFailed&&window.__yaLoadFailed(event)"></script>
+  <script>
+    'use strict';
+
+    window.__yaLoadFailed = function(){ document.getElementById('fatal').style.display = 'grid'; };
+
+    const SPB_CENTER = [59.9386, 30.3141]; // [lat, lon]
+    let map, placemark;
+
+    // ===== ЗОНЫ =====
+    let zonesFC = { type:'FeatureCollection', features:[] };
+    function loadZonesFromLS(){ try{ const raw = localStorage.getItem('zonesGeoJSON'); if (raw) zonesFC = JSON.parse(raw); }catch(e){} }
+    function saveZonesToLS(fc){ try{ localStorage.setItem('zonesGeoJSON', JSON.stringify(fc)); }catch(e){} }
+
+    // ===== Геометрия =====
+    function ringLngLatToLatLng(r){ return r.map(pt=>[pt[1], pt[0]]); }
+    function pointInPolygon(point, ring){ const x=point[1], y=point[0]; let inside=false; for(let i=0,j=ring.length-1;i<ring.length;j=i++){ const xi=ring[i][1], yi=ring[i][0]; const xj=ring[j][1], yj=ring[j][0]; const denom=(yj-yi)||1e-9; const cross=((yi>y)!=(yj>y)) && (x < (xj-xi)*(y-yi)/denom + xi); if(cross) inside=!inside; } return inside; }
+    function mercatorXY(lat,lng){ const R=6378137; const x=R*lng*Math.PI/180; const y=R*Math.log(Math.tan(Math.PI/4 + (lat*Math.PI/180)/2)); return [x,y]; }
+    function polygonAreaLatLngRing(ring){ const pts=ring.map(p=>mercatorXY(p[0],p[1])); let a=0; for(let i=0,j=pts.length-1;i<pts.length;j=i++){ const [x1,y1]=pts[j]; const [x2,y2]=pts[i]; a += (x1*y2 - x2*y1); } return Math.abs(a)/2; }
+
+    // ===== Вывод =====
+    function showResult({name='—', price='—', latlng=null}){
+      document.getElementById('zoneBadge').textContent = 'Зона: ' + name;
+      document.getElementById('price').textContent = price==='—' ? '—' : (Number(price).toLocaleString('ru-RU') + ' ₽');
+      document.getElementById('coords').textContent = latlng ? (`Координаты: ${latlng[0].toFixed(6)}, ${latlng[1].toFixed(6)}`) : 'Координаты: —';
+    }
+
+    // ===== Расчёт стоимости =====
+    function calcPrice(latlng){
+      const candidates=[]; // [lat,lon]
+      for(const f of zonesFC.features){
+        if(!f||!f.geometry) continue;
+        if(f.geometry.type==='Polygon'){
+          const ring=ringLngLatToLatLng(f.geometry.coordinates[0]);
+          if(pointInPolygon(latlng, ring)){
+            const area=polygonAreaLatLngRing(ring);
+            const priceNum=Number((f.properties||{}).price);
+            const priority=Number((f.properties||{}).priority||0);
+            candidates.push({f,area,priceNum:isFinite(priceNum)?priceNum:null,priority});
+          }
+        } else if(f.geometry.type==='MultiPolygon'){
+          for(const poly of f.geometry.coordinates){
+            const ring=ringLngLatToLatLng(poly[0]);
+            if(pointInPolygon(latlng, ring)){
+              const area=polygonAreaLatLngRing(ring);
+              const priceNum=Number((f.properties||{}).price);
+              const priority=Number((f.properties||{}).priority||0);
+              candidates.push({f,area,priceNum:isFinite(priceNum)?priceNum:null,priority});
+              break;
+            }
+          }
+        }
+      }
+      if(candidates.length){
+        candidates.sort((a,b)=>{
+          if(b.priority!==a.priority) return b.priority-a.priority;
+          const ap=a.priceNum??-Infinity,bp=b.priceNum??-Infinity;
+          if(bp!==ap) return bp-ap;
+          return a.area-b.area;
+        });
+        const best=candidates[0].f; const {name,price}=best.properties||{};
+        showResult({name:name||'Без имени', price:price??'—', latlng});
+      } else {
+        showResult({name:'Вне зон', price:'—', latlng});
+      }
+    }
+
+    function setRegionFromObj(obj){
+      try{
+        const gm=obj.properties.get('metaDataProperty').GeocoderMetaData;
+        const text=(gm&&gm.text)||'';
+        const isLO=/ленинградская область/i.test(text);
+        document.getElementById('region').textContent='Регион: ' + (isLO?'Ленинградская область':'Санкт-Петербург/другой');
+      }catch(e){}
+    }
+
+    // ===== Карта, подсказки, геокод =====
+    function init(){
+      map = new ymaps.Map('map', { center: SPB_CENTER, zoom: 11, controls:['zoomControl','typeSelector','geolocationControl','fullscreenControl'] }, { suppressMapOpenBlock:true });
+
+      // Официальные подсказки (как на твоём скрине)
+      const sv = new ymaps.SuggestView('address', { results: 20 });
+      sv.events.add('select', e=>{ const val=e.get('item').value; findAndMark(val); });
+
+      document.getElementById('btnFind').onclick = ()=>{ const q=document.getElementById('address').value.trim(); if(q) findAndMark(q); };
+      document.getElementById('btnLoadZones').onclick = loadZones;
+
+      map.events.add('click', e=>{ const coord=e.get('coords'); placeMarker(coord); });
+
+      loadZonesFromLS();
+
+      // Диагностика
+      document.getElementById('btnTestSuggest').onclick = ()=> { const a=document.getElementById('address'); a.value='Крыленко'; a.focus(); a.dispatchEvent(new Event('input', {bubbles:true})); };
+      document.getElementById('btnTestGeocode').onclick = ()=> findAndMark('Санкт-Петербург, улица Крыленко, 45к1');
+      document.getElementById('btnTestPrice').onclick = ()=>{ const c=map.getCenter(); calcPrice([c[0], c[1]]); };
+    }
+
+    function findAndMark(query){
+      ymaps.geocode(query, { results:1 }).then(res=>{
+        const obj=res.geoObjects.get(0);
+        if(!obj) return alert('Адрес не найден');
+        const coord=obj.geometry.getCoordinates();
+        placeMarker(coord);
+        map.setCenter(coord, 14, { checkZoomRange:true });
+        const name=obj.getAddressLine&&obj.getAddressLine(); if(name) document.getElementById('address').value=name;
+        setRegionFromObj(obj);
+      }).catch(()=>alert('Геокодер недоступен. Проверьте ключ/интернет.'));
+    }
+    function placeMarker(coord){
+      if(!placemark){ placemark=new ymaps.Placemark(coord, {}, {preset:'islands#blueIcon'}); map.geoObjects.add(placemark);}
+      else placemark.geometry.setCoordinates(coord);
+      calcPrice([coord[0], coord[1]]);
+    }
+
+    function loadZones(){
+      const file=document.getElementById('zonesFile').files[0];
+      if(!file) return alert('Выберите файл');
+      const reader=new FileReader();
+      reader.onload=()=>{
+        try{ const fc=JSON.parse(reader.result);
+          if(!fc||fc.type!=='FeatureCollection') throw new Error('Нужен FeatureCollection');
+          saveZonesToLS(fc); zonesFC=fc; alert('Зоны загружены');
+        }catch(e){ alert('Ошибка файла: '+e.message); }
+      };
+      reader.readAsText(file);
+    }
+
+    (function wait(){ if(window.ymaps&&ymaps.ready) ymaps.ready(init); else setTimeout(wait, 300); })();
+
+    document.getElementById('retry').onclick = function(){
+      document.getElementById('fatal').style.display='none';
+      const old=document.getElementById('yaScript');
+      const s=document.createElement('script'); s.id='yaScript'; s.src=old.src; s.crossOrigin='anonymous'; s.onerror=window.__yaLoadFailed; old.replaceWith(s);
+    };
+  </script>
+</body>
+</html>
