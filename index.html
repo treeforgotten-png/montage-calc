@@ -202,6 +202,56 @@
             background: #e0e0e0;
         }
 
+        .search-section {
+            margin-top: 10px;
+            padding-top: 15px;
+            border-top: 1px solid #ececec;
+        }
+
+        .search-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .search-meta {
+            margin-top: 8px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .search-results {
+            margin-top: 10px;
+            max-height: 240px;
+            overflow-y: auto;
+            border: 1px solid #ececec;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+
+        .search-result-item {
+            padding: 10px;
+            border-bottom: 1px solid #ececec;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+
+        .search-result-main {
+            font-weight: 600;
+            color: #222;
+            margin-bottom: 4px;
+        }
+
+        .search-result-details {
+            color: #555;
+        }
+
         .info-panel {
             background: white;
             padding: 20px;
@@ -292,6 +342,19 @@
                 <input type="file" id="geojsonFile" accept=".geojson,.json" style="display: none;">
                 <label for="geojsonFile" class="file-input-label">Импорт GeoJSON</label>
             </div>
+
+            <div class="search-section">
+                <div class="file-input-wrapper">
+                    <input type="file" id="excelFile" accept=".xlsx,.xls,.csv" style="display: none;">
+                    <label for="excelFile" class="file-input-label">Импорт базы из Excel</label>
+                </div>
+                <div class="input-group" style="margin-top: 10px; margin-bottom: 5px;">
+                    <input type="text" id="projectsSearchInput" placeholder="Поиск по базе: адрес, телефон, клиент, объект..." autocomplete="off">
+                </div>
+                <button class="btn btn-primary" id="projectsSearchBtn">Найти в базе</button>
+                <div class="search-meta" id="searchMeta">База не загружена.</div>
+                <div class="search-results" id="searchResults"></div>
+            </div>
         </div>
 
         <div class="info-panel">
@@ -320,6 +383,8 @@
 
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- SheetJS -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     
     <script>
         // Инициализация карты для Санкт-Петербурга
@@ -343,6 +408,8 @@
         let zones = [];
         let zoneLayers = [];
         let autocompleteTimeout = null;
+        let projectsRows = [];
+        let projectsSearchIndex = [];
 
         // Встроенные зоны для СПБ и ЛО (GeoJSON)
         const defaultZonesGeoJSON = {
@@ -794,6 +861,116 @@
 
         // Загрузка зон при инициализации
         loadZones();
+
+        function normalizeText(value) {
+            return String(value || '')
+                .toLowerCase()
+                .replace(/ё/g, 'е')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function buildSearchIndex(rows) {
+            projectsSearchIndex = rows.map((row, index) => {
+                const raw = Object.values(row)
+                    .map(value => String(value || '').trim())
+                    .filter(Boolean)
+                    .join(' | ');
+
+                return {
+                    index,
+                    raw,
+                    normalized: normalizeText(raw),
+                    row
+                };
+            });
+        }
+
+        function summarizeRow(row) {
+            const entries = Object.entries(row).filter(([, value]) => String(value || '').trim() !== '');
+            const main = entries.slice(0, 1).map(([key, value]) => `${key}: ${value}`).join('');
+            const details = entries.slice(1, 5).map(([key, value]) => `${key}: ${value}`).join(' · ');
+            return { main, details };
+        }
+
+        function renderResults(items) {
+            const container = document.getElementById('searchResults');
+            container.innerHTML = '';
+
+            if (!items.length) {
+                container.innerHTML = '<div class="search-result-item">Ничего не найдено. Попробуйте упростить запрос.</div>';
+                return;
+            }
+
+            items.slice(0, 50).forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'search-result-item';
+                const summary = summarizeRow(item.row);
+                card.innerHTML = `
+                    <div class="search-result-main">${summary.main || 'Запись без названия'}</div>
+                    <div class="search-result-details">${summary.details || 'Нет дополнительных данных'}</div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function searchProjects() {
+            const query = document.getElementById('projectsSearchInput').value;
+            const normalizedQuery = normalizeText(query);
+            const meta = document.getElementById('searchMeta');
+
+            if (!projectsSearchIndex.length) {
+                meta.textContent = 'Сначала загрузите Excel/CSV файл с проектами.';
+                return;
+            }
+
+            if (!normalizedQuery) {
+                renderResults(projectsSearchIndex.slice(0, 20));
+                meta.textContent = `Показаны первые 20 из ${projectsSearchIndex.length} записей.`;
+                return;
+            }
+
+            const tokens = normalizedQuery.split(' ').filter(Boolean);
+            const results = projectsSearchIndex
+                .filter(item => tokens.every(token => item.normalized.includes(token)))
+                .sort((a, b) => a.normalized.indexOf(tokens[0]) - b.normalized.indexOf(tokens[0]));
+
+            renderResults(results);
+            meta.textContent = `Найдено: ${results.length} из ${projectsSearchIndex.length} записей.`;
+        }
+
+        document.getElementById('projectsSearchBtn').addEventListener('click', searchProjects);
+        document.getElementById('projectsSearchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                searchProjects();
+            }
+        });
+
+        document.getElementById('excelFile').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const data = new Uint8Array(event.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+                    projectsRows = jsonRows;
+                    buildSearchIndex(projectsRows);
+
+                    document.getElementById('searchMeta').textContent = `Загружено ${projectsRows.length} записей (лист: ${firstSheetName}).`;
+                    renderResults(projectsSearchIndex.slice(0, 20));
+                } catch (error) {
+                    console.error('Ошибка чтения Excel:', error);
+                    document.getElementById('searchMeta').textContent = 'Не удалось прочитать файл. Проверьте формат.';
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
     </script>
 </body>
 </html>
