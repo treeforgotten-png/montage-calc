@@ -1,800 +1,367 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Калькулятор стоимости выезда монтажников</title>
-    
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            height: 100vh;
-            display: flex;
-            overflow: hidden;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-
-        .header h1 {
-            font-size: 24px;
-            margin-bottom: 10px;
-        }
-
-        .left-panel {
-            width: 400px;
-            min-width: 350px;
-            display: flex;
-            flex-direction: column;
-            background: #f8f9fa;
-            border-right: 1px solid #e0e0e0;
-            overflow-y: auto;
-        }
-
-        .controls {
-            background: white;
-            padding: 20px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-
-        .input-group {
-            position: relative;
-            margin-bottom: 15px;
-        }
-
-        .input-group input {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 14px;
-            transition: border-color 0.3s;
-        }
-
-        .input-group input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .autocomplete-list {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: white;
-            border: 2px solid #e0e0e0;
-            border-top: none;
-            border-radius: 0 0 8px 8px;
-            max-height: 200px;
-            overflow-y: auto;
-            z-index: 1000;
-            display: none;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        .autocomplete-item {
-            padding: 10px 15px;
-            cursor: pointer;
-            border-bottom: 1px solid #f0f0f0;
-            transition: background 0.2s;
-        }
-
-        .autocomplete-item:hover {
-            background: #f5f5f5;
-        }
-
-        .autocomplete-item:last-child {
-            border-bottom: none;
-        }
-
-        .btn {
-            width: 100%;
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            margin-bottom: 15px;
-        }
-
-        .btn-primary {
-            background: #667eea;
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: #5568d3;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
-        }
-
-        .toggle-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-
-        .toggle-switch {
-            position: relative;
-            width: 50px;
-            height: 26px;
-        }
-
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .toggle-slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #ccc;
-            transition: 0.4s;
-            border-radius: 26px;
-        }
-
-        .toggle-slider:before {
-            position: absolute;
-            content: "";
-            height: 20px;
-            width: 20px;
-            left: 3px;
-            bottom: 3px;
-            background-color: white;
-            transition: 0.4s;
-            border-radius: 50%;
-        }
-
-        input:checked + .toggle-slider {
-            background-color: #667eea;
-        }
-
-        input:checked + .toggle-slider:before {
-            transform: translateX(24px);
-        }
-
-        .file-input-wrapper {
-            position: relative;
-            display: block;
-        }
-
-        .file-input-wrapper input[type="file"] {
-            position: absolute;
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .file-input-label {
-            display: block;
-            width: 100%;
-            padding: 12px 24px;
-            background: #f0f0f0;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            text-align: center;
-            transition: background 0.3s;
-        }
-
-        .file-input-label:hover {
-            background: #e0e0e0;
-        }
-
-        .info-panel {
-            background: white;
-            padding: 20px;
-            margin: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-
-        .info-item {
-            margin-bottom: 20px;
-        }
-
-        .info-item:last-child {
-            margin-bottom: 0;
-        }
-
-        .info-label {
-            font-size: 12px;
-            color: #666;
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .info-value {
-            font-size: 18px;
-            font-weight: 600;
-            color: #333;
-            word-break: break-word;
-        }
-
-        .price {
-            color: #667eea;
-            font-size: 28px;
-        }
-
-        .map-container {
-            flex: 1;
-            position: relative;
-        }
-
-        #map {
-            width: 100%;
-            height: 100%;
-        }
-
-        .zone-info {
-            background: rgba(102, 126, 234, 0.1);
-            border-left: 4px solid #667eea;
-            padding: 10px;
-            margin-top: 10px;
-            border-radius: 4px;
-        }
-
-        @media (max-width: 768px) {
-            body {
-                flex-direction: column;
-            }
-            
-            .left-panel {
-                width: 100%;
-                max-height: 50vh;
-            }
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Поиск по базе клиентов (Excel/CSV)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f4f6fb;
+      color: #1f2937;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .app {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      overflow: hidden;
+    }
+    .header {
+      padding: 24px;
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      color: #fff;
+    }
+    .header h1 { font-size: 28px; margin-bottom: 8px; }
+    .header p { opacity: 0.95; }
+    .content {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 0;
+      min-height: 70vh;
+    }
+    .sidebar {
+      border-right: 1px solid #e5e7eb;
+      padding: 20px;
+      background: #fafbff;
+    }
+    .main {
+      padding: 20px;
+    }
+    .section-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #6b7280;
+      margin: 18px 0 8px;
+    }
+    .input, .btn, .checkbox-wrap {
+      width: 100%;
+      border-radius: 10px;
+      font-size: 14px;
+    }
+    .input {
+      border: 1px solid #d1d5db;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+      background: #fff;
+    }
+    .input:focus {
+      outline: none;
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.14);
+    }
+    .btn {
+      border: none;
+      background: #4f46e5;
+      color: #fff;
+      padding: 11px 14px;
+      cursor: pointer;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .btn:hover { background: #4338ca; }
+    .file-note {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 12px;
+    }
+    .column-box {
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      max-height: 260px;
+      overflow: auto;
+      padding: 10px;
+      background: #fff;
+    }
+    .checkbox-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      color: #374151;
+    }
+    .checkbox-wrap:last-child { margin-bottom: 0; }
+    .meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+      padding: 10px 12px;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      background: #f9fafb;
+      font-size: 13px;
+    }
+    .results {
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .result {
+      padding: 12px;
+      border-bottom: 1px solid #eef2f7;
+      background: #fff;
+    }
+    .result:last-child { border-bottom: none; }
+    .result-main {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .result-line {
+      font-size: 13px;
+      color: #4b5563;
+      margin-bottom: 2px;
+    }
+    .empty {
+      padding: 30px;
+      text-align: center;
+      color: #6b7280;
+    }
+    @media (max-width: 980px) {
+      .content { grid-template-columns: 1fr; }
+      .sidebar { border-right: none; border-bottom: 1px solid #e5e7eb; }
+    }
+  </style>
 </head>
 <body>
-    <div class="left-panel">
-        <div class="header">
-            <h1>🗺️ Калькулятор стоимости выезда монтажников</h1>
-            <p>Санкт-Петербург и Ленинградская область</p>
-        </div>
-
-        <div class="controls">
-            <div class="input-group">
-                <input type="text" id="addressInput" placeholder="Введите адрес..." autocomplete="off">
-                <div class="autocomplete-list" id="autocompleteList"></div>
-            </div>
-            <button class="btn btn-primary" id="geocodeBtn">Найти</button>
-            <div class="toggle-group">
-                <label class="toggle-switch">
-                    <input type="checkbox" id="showZonesToggle">
-                    <span class="toggle-slider"></span>
-                </label>
-                <label for="showZonesToggle">Показать зоны</label>
-            </div>
-            <div class="file-input-wrapper">
-                <input type="file" id="geojsonFile" accept=".geojson,.json" style="display: none;">
-                <label for="geojsonFile" class="file-input-label">Импорт GeoJSON</label>
-            </div>
-        </div>
-
-        <div class="info-panel">
-            <div class="info-item">
-                <div class="info-label">Адрес</div>
-                <div class="info-value" id="addressDisplay">—</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Координаты</div>
-                <div class="info-value" id="coordinatesDisplay">—</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Зона</div>
-                <div class="info-value" id="zoneDisplay">—</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Стоимость выезда</div>
-                <div class="info-value price" id="priceDisplay">—</div>
-            </div>
-        </div>
+  <div class="app">
+    <div class="header">
+      <h1>🔎 Поиск по базе клиентов</h1>
+      <p>Загрузите Excel/CSV и ищите по отдельным полям или по всем выбранным колонкам.</p>
     </div>
 
-    <div class="map-container">
-        <div id="map"></div>
+    <div class="content">
+      <aside class="sidebar">
+        <div class="section-title">1) Импорт базы</div>
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" class="input" />
+        <div class="file-note">Поддержка: .xlsx, .xls, .csv (используется первый лист файла)</div>
+
+        <div class="section-title">2) Отдельные фильтры</div>
+        <input id="clientInput" class="input" placeholder="Клиент (ФИО)" />
+        <input id="phoneInput" class="input" placeholder="Телефон" />
+        <input id="equipmentInput" class="input" placeholder="Оборудование" />
+
+        <div class="section-title">3) Общий поиск</div>
+        <input id="globalInput" class="input" placeholder="Поиск по выбранным ниже полям" />
+
+        <div class="section-title">4) Поля для общего поиска</div>
+        <button id="allOnBtn" class="btn" type="button">Включить все поля</button>
+        <button id="allOffBtn" class="btn" type="button" style="background:#6b7280;">Отключить все поля</button>
+        <div id="columnsBox" class="column-box">
+          <div class="empty">Сначала загрузите файл.</div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <div class="meta">
+          <div id="countInfo">Всего записей: 0</div>
+          <div id="foundInfo">Найдено: 0</div>
+        </div>
+        <div id="results" class="results">
+          <div class="empty">Результаты появятся после загрузки файла.</div>
+        </div>
+      </main>
     </div>
+  </div>
 
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
-    <script>
-        // Инициализация карты для Санкт-Петербурга
-        const map = L.map('map', {
-            center: [59.9343, 30.3351], // Санкт-Петербург
-            zoom: 10,
-            maxBounds: [
-                [59.3, 29.0], // Юго-запад
-                [60.5, 31.5]  // Северо-восток
-            ],
-            maxBoundsViscosity: 1.0
-        });
-        
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors',
-            maxZoom: 19
-        }).addTo(map);
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const clientInput = document.getElementById('clientInput');
+    const phoneInput = document.getElementById('phoneInput');
+    const equipmentInput = document.getElementById('equipmentInput');
+    const globalInput = document.getElementById('globalInput');
+    const columnsBox = document.getElementById('columnsBox');
+    const results = document.getElementById('results');
+    const countInfo = document.getElementById('countInfo');
+    const foundInfo = document.getElementById('foundInfo');
+    const allOnBtn = document.getElementById('allOnBtn');
+    const allOffBtn = document.getElementById('allOffBtn');
 
-        // Переменные
-        let marker = null;
-        let zones = [];
-        let zoneLayers = [];
-        let autocompleteTimeout = null;
+    let rows = [];
+    let filteredRows = [];
+    let selectedColumns = new Set();
 
-        // Встроенные зоны для СПБ и ЛО (GeoJSON)
-        const defaultZonesGeoJSON = {
-            "type": "FeatureCollection",
-            "features": [
-                {
-                    "type": "Feature",
-                    "properties": {
-                        "name": "1",
-                        "price": 2500,
-                        "priority": 2
-                    },
-                    "geometry": {
-                        "type": "Polygon",
-                        "coordinates": [
-                            [
-                                [30.434875488281254, 59.8247784242087],
-                                [30.52688598632813, 59.86891539962408],
-                                [30.550231933593754, 59.97213228605524],
-                                [30.48294067382813, 59.98930390325323],
-                                [30.43899536132813, 60.03939407001643],
-                                [30.46096801757813, 60.06680856284607],
-                                [30.429382324218754, 60.07571337148815],
-                                [30.41152954101563, 60.05310416245491],
-                                [30.36209106445313, 60.09146214463316],
-                                [30.274200439453125, 60.09899150746043],
-                                [30.23025512695313, 60.08803913823788],
-                                [30.14785766601563, 60.0599570740577],
-                                [30.15609741210938, 60.037337065114],
-                                [30.23162841796875, 60.01332920713906],
-                                [30.22201538085938, 59.97968889495083],
-                                [30.204162597656254, 59.9295082274846],
-                                [30.209655761718754, 59.90748726090594],
-                                [30.289306640625004, 59.87718456797361],
-                                [30.274200439453125, 59.83443838919568],
-                                [30.32913208007813, 59.80545008798622]
-                            ]
-                        ]
-                    }
-                },
-                {
-                    "type": "Feature",
-                    "properties": {
-                        "name": "2",
-                        "price": 4500,
-                        "priority": 1
-                    },
-                    "geometry": {
-                        "type": "Polygon",
-                        "coordinates": [
-                            [
-                                [29.731750488281254, 60.01808897112663],
-                                [29.657592773437504, 59.91088565707509],
-                                [29.671325683593754, 59.88747476303815],
-                                [29.794921875000004, 59.859911403354914],
-                                [29.841613769531254, 59.814381883476024],
-                                [30.017395019531254, 59.72175150356962],
-                                [30.379943847656254, 59.702363429278456],
-                                [30.585937500000004, 59.76468563170442],
-                                [30.66421508789063, 59.791637087318136],
-                                [30.66696166992188, 60.014015207183654],
-                                [30.69305419921875, 60.04213636327655],
-                                [30.525512695312504, 60.170053105473784],
-                                [30.184936523437504, 60.170053105473784],
-                                [30.130004882812504, 60.12905158412811],
-                                [30.0091552734375, 60.15639161233085],
-                                [29.934997558593754, 60.09484457895486]
-                            ]
-                        ]
-                    }
-                },
-                {
-                    "type": "Feature",
-                    "properties": {
-                        "name": "3",
-                        "price": 6500,
-                        "priority": 0
-                    },
-                    "geometry": {
-                        "type": "Polygon",
-                        "coordinates": [
-                            [
-                                [30.874328613281254, 59.6912294579283],
-                                [30.901794433593754, 59.77841637836682],
-                                [30.830383300781254, 59.81847366593964],
-                                [30.844116210937504, 59.94523382777718],
-                                [30.852355957031254, 60.08802939577392],
-                                [30.715026855468754, 60.20550866386412],
-                                [30.599670410156254, 60.26276305929032],
-                                [30.292053222656254, 60.28046439021118],
-                                [29.858093261718754, 60.16455139037375],
-                                [29.514770507812504, 59.956248106147434],
-                                [29.558715820312504, 59.80744274117352],
-                                [29.84848022460938, 59.669075917075475],
-                                [30.143737792968754, 59.588554224377255],
-                                [30.498046875000004, 59.60106162944427],
-                                [30.852355957031254, 59.68640444647024]
-                            ]
-                        ]
-                    }
-                },
-                {
-                    "type": "Feature",
-                    "properties": {
-                        "name": "4",
-                        "price": 8000,
-                        "priority": -1
-                    },
-                    "geometry": {
-                        "type": "Polygon",
-                        "coordinates": [
-                            [
-                                [31.162719726562504, 59.883205564023655],
-                                [31.102294921875004, 59.727152099978305],
-                                [30.964965820312504, 59.557848247839914],
-                                [30.654602050781254, 59.511906050221896],
-                                [30.259094238281254, 59.4770596460798],
-                                [29.737243652343754, 59.5077263808172],
-                                [29.62188720703125, 59.64676989170624],
-                                [29.284057617187504, 59.778329694840394],
-                                [29.24560546875, 59.9176320635722],
-                                [29.594421386718754, 60.20006574910312],
-                                [29.827880859375004, 60.287285107914535],
-                                [30.184936523437504, 60.36205384569266],
-                                [30.511779785156254, 60.37562977148474],
-                                [30.753479003906254, 60.32808928218389],
-                                [30.945739746093754, 60.22734674936266],
-                                [31.0748291015625, 60.11261394066905],
-                                [31.173706054687504, 59.90398185639565]
-                            ]
-                        ]
-                    }
-                }
-            ]
-        };
+    function normalize(value) {
+      return (value ?? '').toString().toLowerCase().trim();
+    }
 
-        // Загрузка зон по умолчанию
-        zones = [defaultZonesGeoJSON];
+    function columns() {
+      return rows.length ? Object.keys(rows[0]) : [];
+    }
 
-        // Функция проверки точки в полигоне
-        function pointInPolygon(point, polygon) {
-            const x = point[0];
-            const y = point[1];
-            let inside = false;
-            
-            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-                const xi = polygon[i][0], yi = polygon[i][1];
-                const xj = polygon[j][0], yj = polygon[j][1];
-                
-                const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-                if (intersect) inside = !inside;
-            }
-            
-            return inside;
+    function getValueByHints(row, hints) {
+      const keys = Object.keys(row);
+      for (const key of keys) {
+        const keyNorm = normalize(key);
+        if (hints.some(h => keyNorm.includes(h))) {
+          return row[key];
         }
+      }
+      return '';
+    }
 
-        // Определение зоны по координатам с учётом приоритета
-        function findZone(lat, lng) {
-            const foundZones = [];
-            
-            for (let zoneCollection of zones) {
-                for (let feature of zoneCollection.features) {
-                    let isInside = false;
-                    
-                    if (feature.geometry.type === "Polygon") {
-                        const coordinates = feature.geometry.coordinates[0];
-                        isInside = pointInPolygon([lng, lat], coordinates);
-                    } else if (feature.geometry.type === "MultiPolygon") {
-                        for (let polygon of feature.geometry.coordinates) {
-                            if (pointInPolygon([lng, lat], polygon[0])) {
-                                isInside = true;
-                                break;
-                            }
-                        }
-                    }
-                    
-                    if (isInside) {
-                        foundZones.push({
-                            name: feature.properties.name || "Неизвестная зона",
-                            price: feature.properties.price || 0,
-                            priority: feature.properties.priority !== undefined ? feature.properties.priority : -999
-                        });
-                    }
-                }
-            }
-            
-            // Если найдено несколько зон, выбираем с наивысшим приоритетом
-            if (foundZones.length > 0) {
-                foundZones.sort((a, b) => b.priority - a.priority);
-                return foundZones[0];
-            }
-            
-            return null;
-        }
+    function renderColumns() {
+      const cols = columns();
+      if (!cols.length) {
+        columnsBox.innerHTML = '<div class="empty">Сначала загрузите файл.</div>';
+        return;
+      }
 
-        // Обновление информации
-        function updateInfo(lat, lng, address = null) {
-            const zone = findZone(lat, lng);
-            
-            document.getElementById('coordinatesDisplay').textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-            
-            if (address) {
-                document.getElementById('addressDisplay').textContent = address;
-            }
-            
-            if (zone) {
-                document.getElementById('zoneDisplay').textContent = `Зона ${zone.name}`;
-                document.getElementById('priceDisplay').textContent = `${zone.price} ₽`;
-            } else {
-                document.getElementById('zoneDisplay').textContent = "Вне зон";
-                document.getElementById('priceDisplay').textContent = "—";
-            }
-        }
+      columnsBox.innerHTML = '';
+      cols.forEach(col => {
+        if (!selectedColumns.has(col)) selectedColumns.add(col);
+        const label = document.createElement('label');
+        label.className = 'checkbox-wrap';
 
-        // Установка маркера
-        function setMarker(lat, lng) {
-            if (marker) {
-                marker.setLatLng([lat, lng]);
-            } else {
-                marker = L.marker([lat, lng], { draggable: true }).addTo(map);
-                marker.on('dragend', function() {
-                    const position = marker.getLatLng();
-                    reverseGeocode(position.lat, position.lng);
-                });
-            }
-            map.setView([lat, lng], 15);
-        }
-
-        // Геокодинг (адрес -> координаты) с фильтрацией по СПБ и ЛО
-        async function geocode(address) {
-            try {
-                // Ограничиваем поиск только СПБ и ЛО через viewbox
-                const viewbox = '29.0,59.3,31.5,60.5'; // [min_lon, min_lat, max_lon, max_lat]
-                const response = await fetch(
-                    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=5&accept-language=ru&viewbox=${viewbox}&bounded=1&countrycodes=ru`
-                );
-                const data = await response.json();
-                
-                // Фильтруем результаты только для СПБ и ЛО
-                const filteredData = data.filter(item => {
-                    const lat = parseFloat(item.lat);
-                    const lng = parseFloat(item.lon);
-                    // Проверяем, что координаты в пределах СПБ и ЛО
-                    return lat >= 59.3 && lat <= 60.5 && lng >= 29.0 && lng <= 31.5;
-                });
-                
-                if (filteredData.length > 0) {
-                    const result = filteredData[0];
-                    const lat = parseFloat(result.lat);
-                    const lng = parseFloat(result.lon);
-                    
-                    setMarker(lat, lng);
-                    updateInfo(lat, lng, result.display_name);
-                } else {
-                    alert('Адрес не найден в Санкт-Петербурге и Ленинградской области');
-                }
-            } catch (error) {
-                console.error('Ошибка геокодинга:', error);
-                alert('Ошибка при поиске адреса');
-            }
-        }
-
-        // Обратный геокодинг (координаты -> адрес)
-        async function reverseGeocode(lat, lng) {
-            // Проверяем, что координаты в пределах СПБ и ЛО
-            if (lat < 59.3 || lat > 60.5 || lng < 29.0 || lng > 31.5) {
-                updateInfo(lat, lng, 'Адрес вне Санкт-Петербурга и Ленинградской области');
-                return;
-            }
-            
-            try {
-                const response = await fetch(
-                    `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ru`
-                );
-                const data = await response.json();
-                
-                const address = data.display_name || 'Адрес не определён';
-                updateInfo(lat, lng, address);
-            } catch (error) {
-                console.error('Ошибка обратного геокодинга:', error);
-                updateInfo(lat, lng, 'Адрес не определён');
-            }
-        }
-
-        // Автодополнение адресов с фильтрацией по СПБ и ЛО
-        async function autocomplete(query) {
-            if (query.length < 3) {
-                document.getElementById('autocompleteList').style.display = 'none';
-                return;
-            }
-
-            try {
-                // Ограничиваем поиск только СПБ и ЛО
-                const viewbox = '29.0,59.3,31.5,60.5';
-                const response = await fetch(
-                    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&accept-language=ru&viewbox=${viewbox}&bounded=1&countrycodes=ru`
-                );
-                const data = await response.json();
-                
-                // Фильтруем результаты только для СПБ и ЛО
-                const filteredData = data.filter(item => {
-                    const lat = parseFloat(item.lat);
-                    const lng = parseFloat(item.lon);
-                    return lat >= 59.3 && lat <= 60.5 && lng >= 29.0 && lng <= 31.5;
-                });
-                
-                const list = document.getElementById('autocompleteList');
-                list.innerHTML = '';
-                
-                if (filteredData.length > 0) {
-                    filteredData.forEach(item => {
-                        const div = document.createElement('div');
-                        div.className = 'autocomplete-item';
-                        div.textContent = item.display_name;
-                        div.onclick = () => {
-                            document.getElementById('addressInput').value = item.display_name;
-                            list.style.display = 'none';
-                            geocode(item.display_name);
-                        };
-                        list.appendChild(div);
-                    });
-                    list.style.display = 'block';
-                } else {
-                    list.style.display = 'none';
-                }
-            } catch (error) {
-                console.error('Ошибка автодополнения:', error);
-            }
-        }
-
-        // Обработчики событий
-        document.getElementById('addressInput').addEventListener('input', (e) => {
-            clearTimeout(autocompleteTimeout);
-            autocompleteTimeout = setTimeout(() => {
-                autocomplete(e.target.value);
-            }, 300);
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.checked = selectedColumns.has(col);
+        input.addEventListener('change', () => {
+          if (input.checked) selectedColumns.add(col);
+          else selectedColumns.delete(col);
+          applyFilters();
         });
 
-        document.getElementById('addressInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                const address = e.target.value.trim();
-                if (address) {
-                    geocode(address);
-                }
-            }
-        });
+        const text = document.createElement('span');
+        text.textContent = col;
 
-        document.getElementById('geocodeBtn').addEventListener('click', () => {
-            const address = document.getElementById('addressInput').value.trim();
-            if (address) {
-                geocode(address);
-            }
-        });
+        label.appendChild(input);
+        label.appendChild(text);
+        columnsBox.appendChild(label);
+      });
+    }
 
-        // Клик по карте
-        map.on('click', (e) => {
-            const { lat, lng } = e.latlng;
-            setMarker(lat, lng);
-            reverseGeocode(lat, lng);
-        });
+    function renderResults() {
+      countInfo.textContent = `Всего записей: ${rows.length}`;
+      foundInfo.textContent = `Найдено: ${filteredRows.length}`;
 
-        // Скрытие автодополнения при клике вне
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.input-group')) {
-                document.getElementById('autocompleteList').style.display = 'none';
-            }
-        });
+      if (!filteredRows.length) {
+        results.innerHTML = '<div class="empty">Совпадений нет. Измените фильтры.</div>';
+        return;
+      }
 
-        // Показ/скрытие зон
-        function updateZonesVisibility() {
-            const showZones = document.getElementById('showZonesToggle').checked;
-            
-            zoneLayers.forEach(layer => {
-                if (showZones) {
-                    map.addLayer(layer);
-                } else {
-                    map.removeLayer(layer);
-                }
-            });
+      const shown = filteredRows.slice(0, 200);
+      results.innerHTML = shown.map((row, index) => {
+        const client = getValueByHints(row, ['фио', 'клиент', 'name']) || `Запись #${index + 1}`;
+        const phone = getValueByHints(row, ['телефон', 'phone', 'моб']);
+        const equipment = getValueByHints(row, ['оборуд', 'equipment', 'техника']);
+        const address = getValueByHints(row, ['адрес', 'address']);
+        const price = getValueByHints(row, ['стоим', 'price', 'сумм']);
+        return `
+          <div class="result">
+            <div class="result-main">${escapeHtml(client)}</div>
+            <div class="result-line">📞 Телефон: ${escapeHtml(phone || '—')}</div>
+            <div class="result-line">🛠 Оборудование: ${escapeHtml(equipment || '—')}</div>
+            <div class="result-line">📍 Адрес: ${escapeHtml(address || '—')}</div>
+            <div class="result-line">💰 Стоимость: ${escapeHtml(price || '—')}</div>
+          </div>
+        `;
+      }).join('');
+
+      if (filteredRows.length > 200) {
+        results.insertAdjacentHTML('beforeend', '<div class="empty">Показаны первые 200 строк. Уточните поиск.</div>');
+      }
+    }
+
+    function escapeHtml(value) {
+      return (value ?? '').toString()
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function applyFilters() {
+      const clientQ = normalize(clientInput.value);
+      const phoneQ = normalize(phoneInput.value);
+      const equipmentQ = normalize(equipmentInput.value);
+      const globalQ = normalize(globalInput.value);
+
+      filteredRows = rows.filter(row => {
+        const client = normalize(getValueByHints(row, ['фио', 'клиент', 'name']));
+        const phone = normalize(getValueByHints(row, ['телефон', 'phone', 'моб']));
+        const equipment = normalize(getValueByHints(row, ['оборуд', 'equipment', 'техника']));
+
+        const byClient = !clientQ || client.includes(clientQ);
+        const byPhone = !phoneQ || phone.includes(phoneQ);
+        const byEquipment = !equipmentQ || equipment.includes(equipmentQ);
+
+        let byGlobal = true;
+        if (globalQ) {
+          const activeCols = selectedColumns.size ? [...selectedColumns] : Object.keys(row);
+          byGlobal = activeCols.some(col => normalize(row[col]).includes(globalQ));
         }
 
-        function loadZones() {
-            // Очистка существующих слоёв
-            zoneLayers.forEach(layer => map.removeLayer(layer));
-            zoneLayers = [];
+        return byClient && byPhone && byEquipment && byGlobal;
+      });
 
-            // Цвета для разных зон
-            const zoneColors = {
-                '1': { color: '#667eea', fill: '#667eea' },
-                '2': { color: '#f093fb', fill: '#f093fb' },
-                '3': { color: '#4facfe', fill: '#4facfe' },
-                '4': { color: '#43e97b', fill: '#43e97b' }
-            };
+      renderResults();
+    }
 
-            // Загрузка зон
-            zones.forEach((zoneCollection, index) => {
-                const layer = L.geoJSON(zoneCollection, {
-                    style: function(feature) {
-                        const zoneName = feature.properties.name || '';
-                        const zoneColor = zoneColors[zoneName] || { color: '#667eea', fill: '#667eea' };
-                        return {
-                            color: zoneColor.color,
-                            weight: 3,
-                            opacity: 0.8,
-                            fillColor: zoneColor.fill,
-                            fillOpacity: 0.25
-                        };
-                    },
-                    onEachFeature: function(feature, layer) {
-                        const name = feature.properties.name || 'Зона';
-                        const price = feature.properties.price || 0;
-                        layer.bindPopup(`<b>Зона ${name}</b><br>Стоимость: ${price} ₽`);
-                    }
-                });
-                zoneLayers.push(layer);
-            });
+    function loadFile(file) {
+      const reader = new FileReader();
+      reader.onload = event => {
+        try {
+          const isCsv = file.name.toLowerCase().endsWith('.csv');
+          const workbook = XLSX.read(event.target.result, { type: isCsv ? 'string' : 'array' });
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          rows = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
 
-            updateZonesVisibility();
+          selectedColumns = new Set(columns());
+          filteredRows = [...rows];
+          renderColumns();
+          applyFilters();
+        } catch (e) {
+          console.error(e);
+          alert('Ошибка чтения файла. Проверьте формат и структуру таблицы.');
         }
+      };
 
-        document.getElementById('showZonesToggle').addEventListener('change', updateZonesVisibility);
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        reader.readAsBinaryString(file);
+      } else {
+        reader.readAsArrayBuffer(file);
+      }
+    }
 
-        // Импорт GeoJSON
-        document.getElementById('geojsonFile').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    try {
-                        const geojson = JSON.parse(event.target.result);
-                        if (geojson.type === 'FeatureCollection' || geojson.type === 'Feature') {
-                            const zoneCollection = geojson.type === 'Feature' 
-                                ? { type: 'FeatureCollection', features: [geojson] }
-                                : geojson;
-                            zones.push(zoneCollection);
-                            loadZones();
-                            alert('GeoJSON успешно импортирован!');
-                        } else {
-                            alert('Неверный формат GeoJSON');
-                        }
-                    } catch (error) {
-                        console.error('Ошибка парсинга GeoJSON:', error);
-                        alert('Ошибка при чтении файла');
-                    }
-                };
-                reader.readAsText(file);
-            }
-        });
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files[0];
+      if (file) loadFile(file);
+    });
 
-        // Загрузка зон при инициализации
-        loadZones();
-    </script>
+    [clientInput, phoneInput, equipmentInput, globalInput].forEach(el => {
+      el.addEventListener('input', applyFilters);
+    });
+
+    allOnBtn.addEventListener('click', () => {
+      selectedColumns = new Set(columns());
+      renderColumns();
+      applyFilters();
+    });
+
+    allOffBtn.addEventListener('click', () => {
+      selectedColumns = new Set();
+      renderColumns();
+      applyFilters();
+    });
+  </script>
 </body>
 </html>
-
