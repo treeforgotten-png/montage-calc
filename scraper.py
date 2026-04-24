@@ -5,6 +5,11 @@ PlayAsia Figures Scraper
 Цена итоговая = цена_USD × 100 × 2.5
 Результат: figures.csv
 
+Скачать:
+    curl -O https://raw.githubusercontent.com/treeforgotten-png/montage-calc/claude/parse-playasia-figures-QvKDk/scraper.py
+    # или
+    wget https://raw.githubusercontent.com/treeforgotten-png/montage-calc/claude/parse-playasia-figures-QvKDk/scraper.py
+
 Запуск:
     pip install requests beautifulsoup4 lxml
     python3 scraper.py
